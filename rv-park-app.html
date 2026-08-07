@@ -333,16 +333,16 @@
 <line x1="400" y1="120" x2="400" y2="800" stroke="#DCD2B4" stroke-width="1.5"/>
 <line x1="600" y1="120" x2="600" y2="800" stroke="#DCD2B4" stroke-width="1.5"/>
 
-<g>
+<g class="building-unit" data-id="mh-1">
   <rect x="645.0" y="455.0" width="90" height="40" rx="7" fill="#F3E7C9" stroke="#B8862B" stroke-width="1.6" />
   <text x="690.0" y="479.0" text-anchor="middle" font-size="12.5" font-weight="700" fill="#7A5A17" font-family="Inter, sans-serif" >MH 1</text>
-</g><g>
+</g><g class="building-unit" data-id="mh-2">
   <rect x="645.0" y="515.0" width="90" height="40" rx="7" fill="#F3E7C9" stroke="#B8862B" stroke-width="1.6" />
   <text x="690.0" y="539.0" text-anchor="middle" font-size="12.5" font-weight="700" fill="#7A5A17" font-family="Inter, sans-serif" >MH 2</text>
-</g><g>
+</g><g class="building-unit" data-id="mh-3">
   <rect x="505.0" y="705.9" width="70" height="76" rx="7" fill="#F3E7C9" stroke="#B8862B" stroke-width="1.6" transform="rotate(-18 540 743.8888888888889)"/>
   <text x="540.0" y="747.9" text-anchor="middle" font-size="12.5" font-weight="700" fill="#7A5A17" font-family="Inter, sans-serif" transform="rotate(-18 540 743.8888888888889)">MH 3</text>
-</g><g>
+</g><g class="building-unit" data-id="laundromat">
   <rect x="340.0" y="935.0" width="120" height="60" rx="7" fill="#DDE6EC" stroke="#3E5C74" stroke-width="1.6" />
   <text x="400.0" y="969.0" text-anchor="middle" font-size="12.5" font-weight="700" fill="#2B4257" font-family="Inter, sans-serif" >LAUNDRY</text>
 </g>
@@ -706,7 +706,7 @@ function buildUnits(){
   units.push({id:'spot-26', kind:'spot', label:'Spot 26', x:32.5, y:56.75, status:'active'});
   units.push({id:'spot-25', kind:'spot', label:'Spot 25', x:32.5, y:63.2, status:'active'});
   units.push({id:'spot-24', kind:'spot', label:'Spot 24', x:32.5, y:69.64, status:'active'});
-  units.push({id:'spot-43', kind:'spot', label:'Spot 43', x:42.5, y:11.61, status:'removed'});
+  units.push({id:'spot-43', kind:'spot', label:'Spot 43', x:57.5, y:76.09, status:'active'});
   units.push({id:'spot-42', kind:'spot', label:'Spot 42', x:42.5, y:18.05, status:'active'});
   units.push({id:'spot-41', kind:'spot', label:'Spot 41', x:42.5, y:24.5, status:'active'});
   units.push({id:'spot-40', kind:'spot', label:'Spot 40', x:42.5, y:30.96, status:'active'});
@@ -756,9 +756,42 @@ function applyLayoutOverrides(){
     if(o){ a.x = o.x; a.y = o.y; if(o.scale!==undefined) a.scale=o.scale; }
   });
   applySpotSvgOverrides();
+  applyBuildingSvgOverrides();
 }
 
 // Physically resizes/rotates the underlying SVG <rect>+<text> for spot units to match overrides.
+
+const ORIGINAL_BUILDING_GEOM = {
+  'mh-1': {w:90, h:40, rot:0},
+  'mh-2': {w:90, h:40, rot:0},
+  'mh-3': {w:70, h:76, rot:-18},
+  'laundromat': {w:120, h:60, rot:0}
+};
+function applyBuildingSvgOverrides(){
+  const vbW=800, vbH=1120;
+  UNITS.filter(u=>u.kind==='mobilehome'||u.kind==='laundromat').forEach(u=>{
+    const g = document.querySelector('g.building-unit[data-id="'+u.id+'"]');
+    if(!g) return;
+    const rect = g.querySelector('rect');
+    const text = g.querySelector('text');
+    if(!rect) return;
+    const geom = ORIGINAL_BUILDING_GEOM[u.id] || {w:parseFloat(rect.getAttribute('width')), h:parseFloat(rect.getAttribute('height')), rot:0};
+    const cx = (u.x/100)*vbW;
+    const cy = (u.y/100)*vbH;
+    rect.setAttribute('width', geom.w);
+    rect.setAttribute('height', geom.h);
+    rect.setAttribute('x', cx - geom.w/2);
+    rect.setAttribute('y', cy - geom.h/2);
+    const tf = geom.rot ? ('rotate('+geom.rot+' '+cx+' '+cy+')') : '';
+    if(tf) rect.setAttribute('transform', tf); else rect.removeAttribute('transform');
+    if(text){
+      text.setAttribute('x', cx);
+      text.setAttribute('y', cy + geom.h*0.12 + 4.5);
+      if(tf) text.setAttribute('transform', tf); else text.removeAttribute('transform');
+    }
+  });
+}
+
 function applySpotSvgOverrides(){
   const vbW=800, vbH=1120;
   UNITS.filter(u=>u.kind==='spot').forEach(u=>{
@@ -813,6 +846,8 @@ async function undoLayoutChange(){
 async function saveOverridePosition(id, x, y){
   LAYOUT_OVERRIDES[id] = Object.assign({}, LAYOUT_OVERRIDES[id], {x:Math.round(x*100)/100, y:Math.round(y*100)/100});
   await sSet('layoutOverrides', LAYOUT_OVERRIDES);
+  applySpotSvgOverrides();
+  applyBuildingSvgOverrides();
 }
 async function resetLayoutOverrides(){
   if(!confirm('Reset the map to its original default layout? This clears all dragged positions.')) return;
@@ -973,6 +1008,7 @@ function renderMapPins(){
   layer.innerHTML='';
   const openSet = openRepairIdsSet();
   applySpotSvgOverrides();
+  applyBuildingSvgOverrides();
 
   mapPins().forEach(u=>{
     if(u.kind==='spot'){
@@ -1125,6 +1161,35 @@ function makeResizable(handle, u){
   handle.addEventListener('pointercancel', onUp);
 }
 
+
+function showRotateReadout(xPct, yPct, angleDeg){
+  let el = document.getElementById('rotate-readout');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'rotate-readout';
+    el.style.position='absolute';
+    el.style.background='rgba(35,38,31,0.85)';
+    el.style.color='#fff';
+    el.style.padding='2px 6px';
+    el.style.borderRadius='6px';
+    el.style.fontSize='11px';
+    el.style.fontWeight='600';
+    el.style.pointerEvents='none';
+    el.style.zIndex='9999';
+    el.style.transform='translate(-50%,-140%)';
+    const layer = document.getElementById('pins-layer') || document.getElementById('map-svg-wrap');
+    if(layer) layer.appendChild(el);
+  }
+  el.style.left = xPct+'%';
+  el.style.top = yPct+'%';
+  el.textContent = Math.round(((angleDeg%360)+360)%360) + '\u00b0';
+  el.style.display='block';
+}
+function hideRotateReadout(){
+  const el = document.getElementById('rotate-readout');
+  if(el) el.style.display='none';
+}
+
 function makeRotatable(handle, u){
   let dragging=false, wrap=null;
   const onDown=(ev)=>{
@@ -1145,10 +1210,12 @@ function makeRotatable(handle, u){
     LAYOUT_OVERRIDES[u.id] = Object.assign({}, LAYOUT_OVERRIDES[u.id], {x:u.x, y:u.y, rot:angleDeg});
     applyLayoutOverrides();
     renderMapPins();
+    showRotateReadout(u.x, u.y, angleDeg);
   };
   const onUp=async (ev)=>{
     if(!dragging) return;
     dragging=false;
+    hideRotateReadout();
     await sSet('layoutOverrides', LAYOUT_OVERRIDES);
   };
   handle.addEventListener('pointerdown', onDown);
@@ -1206,10 +1273,12 @@ function makeGroupRotatable(handle, spots, cxPct, cyPct){
     });
     applyLayoutOverrides();
     renderMapPins();
+    showRotateReadout(cxPct, cyPct, Math.round(delta));
   };
   const onUp=async (ev)=>{
     if(!dragging) return;
     dragging=false;
+    hideRotateReadout();
     await sSet('layoutOverrides', LAYOUT_OVERRIDES);
   };
   handle.addEventListener('pointerdown', onDown);
@@ -1283,11 +1352,14 @@ function makeDraggable(el, obj){
           su.y = Math.max(0, Math.min(100, gs.y+dy));
         }
       });
+      applySpotSvgOverrides();
       renderMapPins();
     } else {
       obj.x = x; obj.y = y;
       el.style.left = x+'%';
       el.style.top = y+'%';
+      if(obj.kind==='spot') applySpotSvgOverrides();
+      if(obj.kind==='mobilehome'||obj.kind==='laundromat') applyBuildingSvgOverrides();
     }
   };
   const onUp = async (ev)=>{
@@ -1455,6 +1527,7 @@ function openRevenueForm(unitId){
   html += '<h2>New Revenue Entry</h2><div class="sheet-sub">Record what was charged and how it was paid.</div>';
 
   html += '<div class="form-group"><label>Unit</label><select id="rev-unit">'+unitDropdownOptions(unitId)+'</select></div>';
+  html += '<div class="form-group"><label>Customer Name</label><input type="text" id="rev-customer" placeholder="Guest name"></div>';
   html += '<div class="form-group"><label>Amount Charged ($)</label><input type="number" step="0.01" min="0" id="rev-amount" placeholder="0.00"></div>';
 
   html += '<div class="form-group"><label>Rate Type</label><div class="seg" id="rev-rate-seg">';
@@ -1513,6 +1586,7 @@ function todayStr(){ return new Date().toISOString().slice(0,10); }
 
 async function saveRevenue(){
   const unitId = document.getElementById('rev-unit').value;
+  const customerName = (document.getElementById('rev-customer').value || '').trim();
   const amount = parseFloat(document.getElementById('rev-amount').value);
   const rate = document.querySelector('#rev-rate-seg button.sel').dataset.val;
   const pay = document.querySelector('#rev-pay-seg button.sel').dataset.val;
@@ -1530,7 +1604,7 @@ async function saveRevenue(){
 
   const unit = findUnit(unitId);
   const entry = {
-    id:'rev-'+Date.now(), unitId, unitLabel: unit?unit.label:unitId,
+    id:'rev-'+Date.now(), unitId, unitLabel: unit?unit.label:unitId, customerName,
     amount, rateType:rate, paymentType:pay, datePaid, depositDate, slipPhoto,
     enteredBy:SESSION_ROLE, timestamp:Date.now()
   };
@@ -1546,8 +1620,9 @@ function renderRevenue(){
   if(!REVENUE.length){ wrap.innerHTML = '<div class="empty-state">No revenue entries yet. Tap a unit on the map or use "+ New Entry".</div>'; return; }
   wrap.innerHTML = REVENUE.map(r=>{
     const badgeClass = r.paymentType==='cash'?'cash':(r.paymentType==='check'?'check':'card');
+    const titleWithCustomer = r.unitLabel + (r.customerName ? (' — '+escapeHtml(r.customerName)) : '');
     let h = '<div class="card"><div class="card-top">'+
-      '<div><div class="card-title">'+r.unitLabel+'</div><div class="card-sub">'+capitalize(r.rateType)+' rate · Paid '+r.datePaid+'</div></div>'+
+      '<div><div class="card-title">'+titleWithCustomer+'</div><div class="card-sub">'+capitalize(r.rateType)+' rate · Paid '+r.datePaid+'</div></div>'+
       '<div class="amount">$'+Number(r.amount).toFixed(2)+'</div></div>'+
       '<div class="card-meta"><span class="badge '+badgeClass+'">'+r.paymentType+'</span>'+
       (r.depositDate?('<span>Deposited '+r.depositDate+'</span>'):'')+
