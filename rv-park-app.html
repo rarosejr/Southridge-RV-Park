@@ -817,7 +817,11 @@ function applySpotSvgOverrides(){
     rect.setAttribute('y', cy - h/2);
     const tf = rot ? ('rotate('+rot+' '+cx+' '+cy+')') : '';
     if(tf) rect.setAttribute('transform', tf); else rect.removeAttribute('transform');
-    if(text){ if(tf) text.setAttribute('transform', tf); else text.removeAttribute('transform'); }
+    if(text){
+      text.setAttribute('x', cx);
+      text.setAttribute('y', cy + 4);
+      if(tf) text.setAttribute('transform', tf); else text.removeAttribute('transform');
+    }
   });
 }
 function getRotationDeg(el){
@@ -899,6 +903,12 @@ async function init(){
   ];
   if(!(await sGet('antennas'))) { await sSet('antennas', ANTENNAS); }
   LAYOUT_OVERRIDES = (await sGet('layoutOverrides')) || {};
+  // One-time migration: spot-43 was relocated from its old removed-slot position to a new
+  // active slot below spot-44. Clear any stale saved override so it snaps to its new default spot.
+  if(LAYOUT_OVERRIDES['spot-43'] && !LAYOUT_OVERRIDES['spot-43'].migratedV2){
+    delete LAYOUT_OVERRIDES['spot-43'];
+    await sSet('layoutOverrides', LAYOUT_OVERRIDES);
+  }
   applyLayoutOverrides();
 
   if(!CONFIG){
@@ -1063,8 +1073,15 @@ function renderMapPins(){
     pin.style.left = u.x+'%';
     pin.style.top = u.y+'%';
     pin.textContent = content;
-    pin.onclick = ()=>onPinTap(u);
-    if(EDIT_LAYOUT_MODE){ pin.style.cursor='grab'; makeDraggable(pin, u); }
+    if(EDIT_LAYOUT_MODE){
+      pin.style.cursor='grab';
+      pin.style.outline = '2px solid #3F5A46';
+      pin.style.boxShadow = '0 0 0 4px rgba(63,90,70,0.28)';
+      pin.onclick = (ev)=>{ ev.stopPropagation(); };
+      makeDraggable(pin, u);
+    } else {
+      pin.onclick = ()=>onPinTap(u);
+    }
     layer.appendChild(pin);
   });
 
