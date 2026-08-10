@@ -2800,6 +2800,11 @@ function renderExpensesTab(){
   // admin's categorized entries (utilities, payroll, etc). Admin sees everything, combined.
   const visibleExpenses = isAdmin ? EXPENSES : EXPENSES.filter(e=>e.isSupply);
 
+  // Running totals reflect the CURRENT MONTH only (not all-time) — matches e.date, an HTML date
+  // input value in YYYY-MM-DD form, so a simple YYYY-MM prefix compare works.
+  const curMonthPrefix = new Date().toISOString().slice(0,7);
+  const isCurrentMonth = e => (e.date||'').slice(0,7) === curMonthPrefix;
+
   const summaryEl = document.getElementById('expense-summary');
   if(isAdmin){
     // summary by category (categorized entries only) plus a running total of supply expenses
@@ -2809,14 +2814,14 @@ function renderExpensesTab(){
       if(c.subs) c.subs.forEach(s=> sums[c.key].subs[s.key]=0);
     });
     let grand = 0, supplyTotal = 0;
-    EXPENSES.forEach(e=>{
+    EXPENSES.filter(isCurrentMonth).forEach(e=>{
       grand += Number(e.amount);
       if(e.isSupply){ supplyTotal += Number(e.amount); return; }
       if(!sums[e.category]) return;
       sums[e.category].total += Number(e.amount);
       if(e.subcategory && sums[e.category].subs[e.subcategory]!==undefined){ sums[e.category].subs[e.subcategory] += Number(e.amount); }
     });
-    summaryEl.innerHTML = EXPENSE_CATEGORIES.map(c=>{
+    summaryEl.innerHTML = '<div class="sheet-sub" style="margin:0 0 10px;">Current month totals</div>' + EXPENSE_CATEGORIES.map(c=>{
       let h = '<div class="exp-cat-card"><div class="exp-cat-head"><h3>'+c.label+'</h3><span class="exp-cat-total">$'+sums[c.key].total.toFixed(2)+'</span></div>';
       if(c.subs){
         c.subs.forEach(s=>{ h += '<div class="exp-sub"><span>'+s.label+'</span><span class="mono">$'+sums[c.key].subs[s.key].toFixed(2)+'</span></div>'; });
@@ -2827,10 +2832,10 @@ function renderExpensesTab(){
     + '<div class="exp-cat-card"><div class="exp-cat-head"><h3>Manager Supply Purchases</h3><span class="exp-cat-total">$'+supplyTotal.toFixed(2)+'</span></div></div>'
     + '<div class="exp-grand" style="margin:6px 0 0;"><span class="lbl">Total Expenses</span><span class="val">$'+grand.toFixed(2)+'</span></div>';
   } else {
-    // Manager view: just her own running total, no categories, no admin numbers.
+    // Manager view: just her own running total for the current month, no categories, no admin numbers.
     let total = 0;
-    visibleExpenses.forEach(e=> total += Number(e.amount));
-    summaryEl.innerHTML = '<div class="exp-grand"><span class="lbl">Your Supply Purchases Total</span><span class="val">$'+total.toFixed(2)+'</span></div>';
+    visibleExpenses.filter(isCurrentMonth).forEach(e=> total += Number(e.amount));
+    summaryEl.innerHTML = '<div class="sheet-sub" style="margin:0 0 10px;">Current month total</div><div class="exp-grand"><span class="lbl">Your Supply Purchases Total</span><span class="val">$'+total.toFixed(2)+'</span></div>';
   }
 
   // list
@@ -3567,8 +3572,8 @@ function renderDesktopView(){
 }
 
 /* ---- Monthly report: on-screen view, print, and PDF download ---- */
-function buildReportHtml(stats, monthLabel){
-  let h = '<h1>Southridge RV Park</h1><div class="rp-sub">Monthly Report — '+monthLabel+'</div>';
+function buildReportHtml(stats, monthLabel, isOverview){
+  let h = '<h1>Southridge RV Park</h1><div class="rp-sub">'+(isOverview?'Overview Report':'Detailed Report')+' — '+monthLabel+'</div>';
   h += '<div class="rp-stat-row"><span>Total Revenue</span><span>$'+stats.revTotal.toFixed(2)+'</span></div>';
   h += '<div class="rp-stat-row"><span>Total Expenses</span><span>$'+stats.expTotal.toFixed(2)+'</span></div>';
   h += '<div class="rp-stat-row"><span><strong>Net Profit</strong></span><span><strong>$'+stats.netProfit.toFixed(2)+'</strong></span></div>';
@@ -3582,6 +3587,8 @@ function buildReportHtml(stats, monthLabel){
   h += '<h2>Expenses by Category</h2><table><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>';
   stats.expPieData.forEach(function(d){ h += '<tr><td>'+escapeHtml(d.label)+'</td><td>$'+d.value.toFixed(2)+'</td></tr>'; });
   h += '</tbody></table>';
+
+  if(isOverview) return h;
 
   h += '<h2>Revenue Entries</h2><table><thead><tr><th>Unit</th><th>Customer</th><th>Paid</th><th>Type</th><th>Amount</th></tr></thead><tbody>';
   if(!stats.revEntries.length){ h += '<tr><td colspan="5">No revenue entries this month.</td></tr>'; }
