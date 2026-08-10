@@ -181,6 +181,8 @@
   .badge.open{background:var(--rust-soft);color:var(--rust);}
   .badge.resolved{background:var(--accent-soft);color:var(--accent-dark);}
   .card-photo{margin-top:9px;width:100%;max-height:150px;object-fit:cover;border-radius:9px;border:1px solid var(--line);}
+  .card-edit-dots{position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;}
+  .card-edit-dots:active{background:var(--line);}
   .card-note{margin-top:7px;font-size:13px;color:var(--ink);line-height:1.4;}
   .card-meta{margin-top:8px;font-size:11px;color:var(--ink-soft);display:flex;gap:10px;flex-wrap:wrap;}
   .row-actions{display:flex;gap:8px;margin-top:10px;}
@@ -2515,7 +2517,7 @@ function renderRevenue(){
     const badgeClass = r.paymentType==='cash'?'cash':(r.paymentType==='check'?'check':'card');
     const titleWithCustomer = r.unitLabel + (r.customerName ? (' — '+escapeHtml(r.customerName)) : '');
     const hasFee = r.ccFeeAmount && r.ccFeeAmount>0;
-    let h = '<div class="card"><div class="card-top">'+
+    let h = '<div class="card" style="position:relative;"><button class="card-edit-dots" onclick="editRevenue(\''+r.id+'\')" title="Edit'+(r.slipPhoto?'':' / add receipt')+'">⋯</button><div class="card-top">'+
       '<div><div class="card-title">'+titleWithCustomer+'</div><div class="card-sub">'+capitalize(r.rateType)+' rate · Paid '+r.datePaid+'</div></div>'+
       '<div class="amount">$'+Number(hasFee?r.netAmount:r.amount).toFixed(2)+'</div></div>'+
       '<div class="card-meta"><span class="badge '+badgeClass+'">'+r.paymentType+'</span>'+
@@ -2523,7 +2525,6 @@ function renderRevenue(){
       '<span>Entered by '+r.enteredBy+'</span></div>';
     if(hasFee){ h += '<div class="card-meta" style="color:#8B8468;">Charged $'+Number(r.amount).toFixed(2)+' — '+r.ccFeePct+'% card fee ($'+Number(r.ccFeeAmount).toFixed(2)+') — net $'+Number(r.netAmount).toFixed(2)+'</div>'; }
     if(r.slipPhoto){ h += '<img class="card-photo" src="'+r.slipPhoto+'" onclick="viewPhoto(\''+r.slipPhoto+'\')">'; }
-    h += '<div style="margin-top:8px;"><button class="btn" style="padding:6px 14px;font-size:13px;" onclick="editRevenue(\''+r.id+'\')">✏️ Edit'+(r.slipPhoto?'':' / Add Receipt')+'</button></div>';
     h += '</div>';
     return h;
   }).join('');
@@ -2916,11 +2917,10 @@ function renderExpensesTab(){
       title = (cat?cat.label:e.category)+(subLabel?(' — '+subLabel):'');
       sub = e.date+' · logged by '+e.enteredBy+(e.vendor?(' · '+e.vendor):'');
     }
-    let h = '<div class="card"><div class="card-top"><div><div class="card-title">'+escapeHtml(title)+'</div>'+
+    let h = '<div class="card" style="position:relative;"><button class="card-edit-dots" onclick="editExpense(\''+e.id+'\')" title="Edit'+(e.photo?'':' / add receipt')+'">⋯</button><div class="card-top"><div><div class="card-title">'+escapeHtml(title)+'</div>'+
       '<div class="card-sub">'+sub+'</div></div><div class="amount">$'+Number(e.amount).toFixed(2)+'</div></div>';
     if(e.note){ h += '<div class="card-note">'+escapeHtml(e.note)+'</div>'; }
     if(e.photo){ h += '<img class="card-photo" src="'+e.photo+'" onclick="viewPhoto(\''+e.photo+'\')">'; }
-    h += '<div style="margin-top:8px;"><button class="btn" style="padding:6px 14px;font-size:13px;" onclick="editExpense(\''+e.id+'\')">✏️ Edit'+(e.photo?'':' / Add Receipt')+'</button></div>';
     h += '</div>';
     return h;
   }).join('');
