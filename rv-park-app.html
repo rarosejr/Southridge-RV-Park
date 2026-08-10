@@ -2838,10 +2838,11 @@ function renderExpensesTab(){
     summaryEl.innerHTML = '<div class="sheet-sub" style="margin:0 0 10px;">Current month total</div><div class="exp-grand"><span class="lbl">Your Supply Purchases Total</span><span class="val">$'+total.toFixed(2)+'</span></div>';
   }
 
-  // list
+  // list — also scoped to the current month, same as the totals above
   const listEl = document.getElementById('expense-list');
-  if(!visibleExpenses.length){ listEl.innerHTML = '<div class="empty-state">No expenses logged yet.</div>'; refreshDesktopIfActive(); return; }
-  listEl.innerHTML = visibleExpenses.slice().sort((a,b)=>b.timestamp-a.timestamp).map(e=>{
+  const monthExpenses = visibleExpenses.filter(isCurrentMonth);
+  if(!monthExpenses.length){ listEl.innerHTML = '<div class="empty-state">No expenses logged this month.</div>'; refreshDesktopIfActive(); return; }
+  listEl.innerHTML = monthExpenses.slice().sort((a,b)=>b.timestamp-a.timestamp).map(e=>{
     let title, sub;
     if(e.isSupply){
       title = e.description || 'Supply purchase';
