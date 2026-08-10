@@ -181,7 +181,7 @@
   .badge.open{background:var(--rust-soft);color:var(--rust);}
   .badge.resolved{background:var(--accent-soft);color:var(--accent-dark);}
   .card-photo{margin-top:9px;width:100%;max-height:150px;object-fit:cover;border-radius:9px;border:1px solid var(--line);}
-  .card-edit-dots{position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;}
+  .card-edit-dots{position:absolute;bottom:10px;right:10px;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;}
   .card-edit-dots:active{background:var(--line);}
   .card-note{margin-top:7px;font-size:13px;color:var(--ink);line-height:1.4;}
   .card-meta{margin-top:8px;font-size:11px;color:var(--ink-soft);display:flex;gap:10px;flex-wrap:wrap;}
@@ -278,6 +278,9 @@
   .desktop-card-title{font-size:13px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.02em;margin-bottom:10px;}
   .desktop-table{width:100%;border-collapse:collapse;font-size:13px;}
   .desktop-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.02em;color:var(--ink-soft);padding:6px 8px;border-bottom:1.5px solid var(--line);}
+  .desktop-table th.num-col{text-align:right;}
+  .desktop-table tr.clickable-row{cursor:pointer;}
+  .desktop-table tr.clickable-row:hover td{background:#F7F3E6;}
   .desktop-table td{padding:7px 8px;border-bottom:1px solid var(--line-soft);vertical-align:top;}
   .desktop-table tr:last-child td{border-bottom:none;}
   .desktop-table-wrap{max-height:360px;overflow-y:auto;}
@@ -3573,14 +3576,14 @@ function computeDesktopYearStats(year){
 
 function desktopRevenueTable(entries){
   if(!entries.length) return '<div class="empty-state">No revenue entries this month.</div>';
-  let h = '<div class="desktop-table-wrap"><table class="desktop-table"><thead><tr><th>Unit</th><th>Customer</th><th>Paid</th><th>Type</th><th>Amount</th></tr></thead><tbody>';
+  let h = '<div class="desktop-table-wrap"><table class="desktop-table"><thead><tr><th>Unit</th><th>Customer</th><th>Paid</th><th>Type</th><th class="num-col">Amount</th></tr></thead><tbody>';
   entries.forEach(function(r){
     const hasFee = r.ccFeeAmount && r.ccFeeAmount>0;
     const displayAmt = hasFee ? r.netAmount : r.amount;
     const amtCell = hasFee
       ? '$'+Number(displayAmt).toFixed(2)+' <span style="color:#8B8468;font-size:11px;">(net, $'+Number(r.amount).toFixed(2)+' charged − '+r.ccFeePct+'% fee)</span>'
       : '$'+Number(displayAmt).toFixed(2);
-    h += '<tr><td>'+escapeHtml(r.unitLabel||r.unitId)+'</td><td>'+escapeHtml(r.customerName||'—')+'</td>'+
+    h += '<tr class="clickable-row" onclick="openDesktopRevenueDetail(\''+r.id+'\')"><td>'+escapeHtml(r.unitLabel||r.unitId)+'</td><td>'+escapeHtml(r.customerName||'—')+'</td>'+
       '<td>'+r.datePaid+'</td><td>'+capitalize(r.paymentType||'')+'</td><td style="text-align:right;font-family:\'JetBrains Mono\',monospace;">'+amtCell+'</td></tr>';
   });
   h += '</tbody></table></div>';
@@ -3588,16 +3591,29 @@ function desktopRevenueTable(entries){
 }
 function desktopExpenseTable(entries){
   if(!entries.length) return '<div class="empty-state">No expenses logged this month.</div>';
-  let h = '<div class="desktop-table-wrap"><table class="desktop-table"><thead><tr><th>Item</th><th>Date</th><th>Logged By</th><th>Amount</th></tr></thead><tbody>';
+  let h = '<div class="desktop-table-wrap"><table class="desktop-table"><thead><tr><th>Item</th><th>Description</th><th>Date</th><th>Logged By</th><th class="num-col">Amount</th></tr></thead><tbody>';
   entries.forEach(function(e){
     const catObj = EXPENSE_CATEGORIES.find(function(c){return c.key===e.category;});
-    const label = e.isSupply ? (e.description||'Supply purchase') : (catObj ? catObj.label : (e.category||'Other'));
-    h += '<tr><td>'+escapeHtml(label)+'</td><td>'+e.date+'</td><td>'+escapeHtml(e.enteredByName||e.enteredBy||'')+'</td>'+
+    const subLabel = catObj && catObj.subs ? (catObj.subs.find(function(s){return s.key===e.subcategory;})||{}).label : null;
+    const label = e.isSupply ? 'Supply Purchase' : ((catObj?catObj.label:e.category)+(subLabel?(' — '+subLabel):''));
+    const desc = e.isSupply ? (e.description||'—') : (e.vendor || e.note || '—');
+    h += '<tr class="clickable-row" onclick="openDesktopExpenseDetail(\''+e.id+'\')"><td>'+escapeHtml(label)+'</td><td>'+escapeHtml(desc)+'</td><td>'+e.date+'</td><td>'+escapeHtml(e.enteredByName||e.enteredBy||'')+'</td>'+
       '<td style="text-align:right;font-family:\'JetBrains Mono\',monospace;">$'+Number(e.amount).toFixed(2)+'</td></tr>';
   });
   h += '</tbody></table></div>';
   return h;
 }
+
+// Desktop dashboard tables are clickable — this reuses the exact same edit forms/save
+// paths as the mobile app (openExpenseForm/openRevenueForm + saveExpense/saveRevenue),
+// so editing from a laptop (e.g. while referencing QuickBooks) stays perfectly in sync.
+function openDesktopExpenseDetail(id){
+  editExpense(id);
+}
+function openDesktopRevenueDetail(id){
+  editRevenue(id);
+}
+
 function desktopNotesList(){
   const items = NOTES.slice().sort(function(a,b){return b.timestamp-a.timestamp;});
   let h = '<div style="display:flex;gap:8px;margin-bottom:10px;"><input type="text" id="desktop-note-input" placeholder="Add a note..." style="flex:1;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:13px;" onkeydown="if(event.key===\'Enter\'){submitDesktopNote();}">'+
