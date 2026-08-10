@@ -2136,53 +2136,95 @@ async function saveMultiDeposit(){
   showToast(entries.length+' revenue entries saved from one deposit');
 }
 
-function openRevenueForm(unitId){
+let REV_EDIT_ID = null;
+
+function openRevenueForm(unitId, editId){
+  REV_EDIT_ID = editId || null;
+  const entry = editId ? REVENUE.find(r=>r.id===editId) : null;
+  if(editId) unitId = entry ? entry.unitId : unitId;
+
   const sheet = document.getElementById('sheet-revenue');
   let html = '<button class="sheet-close" onclick="closeOverlay(\'overlay-revenue\')">✕</button><div class="sheet-handle"></div>';
-  html += '<h2>New Revenue Entry</h2><div class="sheet-sub">Record what was charged and how it was paid.</div>';
+  html += entry ? '<h2>Edit Revenue Entry</h2><div class="sheet-sub">Update the details below.</div>'
+                : '<h2>New Revenue Entry</h2><div class="sheet-sub">Record what was charged and how it was paid.</div>';
 
   html += '<div class="form-group"><label>Unit</label><select id="rev-unit" onchange="REV_AMOUNT_MANUAL=false; recalcRevAmount();">'+unitDropdownOptions(unitId)+'</select></div>';
   html += '<div class="form-group"><label>Customer Name</label>'+customerNameDropdownHtml('rev-customer-select','Type the new guest name')+'</div>';
   html += '<div class="form-group"><label>Rate Type</label><div class="seg" id="rev-rate-seg">';
-  ['daily','weekly','monthly'].forEach((r,i)=> html += '<button type="button" class="'+(i===0?'sel':'')+'" data-val="'+r+'" onclick="segSelect(\'rev-rate-seg\',this); onRevRateChange();">'+r.charAt(0).toUpperCase()+r.slice(1)+'</button>');
+  ['daily','weekly','monthly'].forEach((r)=> html += '<button type="button" class="'+((entry?entry.rateType:'daily')===r?'sel':'')+'" data-val="'+r+'" onclick="segSelect(\'rev-rate-seg\',this); onRevRateChange();">'+r.charAt(0).toUpperCase()+r.slice(1)+'</button>');
   html += '</div></div>';
 
-  html += '<div class="form-group" id="rev-qty-group"><label id="rev-qty-label">Number of Days</label><input type="number" step="1" min="0" id="rev-qty" placeholder="e.g. 1" oninput="onRevQtyOrDiscountChange()"></div>';
+  html += '<div class="form-group" id="rev-qty-group"><label id="rev-qty-label">Number of Days</label><input type="number" step="1" min="0" id="rev-qty" placeholder="e.g. 1" value="'+(entry&&entry.rateQty!=null?entry.rateQty:'')+'" oninput="onRevQtyOrDiscountChange()"></div>';
 
-  html += '<div class="form-group"><label>Discount ($ off, optional)</label><input type="number" step="0.01" min="0" id="rev-discount" placeholder="0.00" oninput="onRevQtyOrDiscountChange()"></div>';
+  html += '<div class="form-group"><label>Discount ($ off, optional)</label><input type="number" step="0.01" min="0" id="rev-discount" placeholder="0.00" value="'+(entry&&entry.discountAmount?entry.discountAmount:'')+'" oninput="onRevQtyOrDiscountChange()"></div>';
 
-  html += '<div class="form-group"><label>Amount Charged ($)</label><input type="number" step="0.01" min="0" id="rev-amount" placeholder="0.00" oninput="REV_AMOUNT_MANUAL=true; updateCcFeePreview();"></div>';
+  html += '<div class="form-group"><label>Amount Charged ($)</label><input type="number" step="0.01" min="0" id="rev-amount" placeholder="0.00" value="'+(entry?Number(entry.amount).toFixed(2):'')+'" oninput="REV_AMOUNT_MANUAL=true; updateCcFeePreview();"></div>';
   html += '<div class="sheet-sub" id="rev-calc-note" style="margin-top:-6px;"></div>';
 
   html += '<div class="form-group"><label>Payment Type</label><div class="seg" id="rev-pay-seg">';
-  ['cash','check','credit card'].forEach((r,i)=> html += '<button type="button" class="'+(i===0?'sel':'')+'" data-val="'+r+'" onclick="segSelect(\'rev-pay-seg\',this); toggleDepositBlock();">'+r.charAt(0).toUpperCase()+r.slice(1)+'</button>');
+  ['cash','check','credit card'].forEach((r)=> html += '<button type="button" class="'+((entry?entry.paymentType:'cash')===r?'sel':'')+'" data-val="'+r+'" onclick="segSelect(\'rev-pay-seg\',this); toggleDepositBlock();">'+r.charAt(0).toUpperCase()+r.slice(1)+'</button>');
   html += '</div></div>';
 
-  html += '<div class="form-group"><label>Date Paid</label><input type="date" id="rev-date-paid" value="'+todayStr()+'"></div>';
+  html += '<div class="form-group"><label>Date Paid</label><input type="date" id="rev-date-paid" value="'+(entry?entry.datePaid:todayStr())+'"></div>';
 
-  html += '<div class="form-group"><label>Check-In Date (optional)</label><input type="date" id="rev-checkin-date"></div>';
-  html += '<div class="form-group"><label>Check-Out Date (optional)</label><input type="date" id="rev-checkout-date"></div>';
+  html += '<div class="form-group"><label>Check-In Date (optional)</label><input type="date" id="rev-checkin-date" value="'+(entry&&entry.checkInDate?entry.checkInDate:'')+'"></div>';
+  html += '<div class="form-group"><label>Check-Out Date (optional)</label><input type="date" id="rev-checkout-date" value="'+(entry&&entry.checkOutDate?entry.checkOutDate:'')+'"></div>';
   html += '<div class="sheet-sub" style="margin-top:-6px;margin-bottom:10px;">Adding check-in/check-out dates helps us track occupancy and vacancy over time — fill in when you know them.</div>';
 
   html += '<div class="conditional-block" id="deposit-block">';
-  html += '<div class="form-group"><label>Deposit Date</label><input type="date" id="rev-deposit-date"></div>';
-  html += '<div class="form-group"><label>Deposit Slip Photo</label>'+photoInputHtml('rev-slip')+'</div>';
+  html += '<div class="form-group"><label>Deposit Date</label><input type="date" id="rev-deposit-date" value="'+(entry&&entry.depositDate?entry.depositDate:'')+'"></div>';
+  html += '<div class="form-group"><label>Deposit Slip Photo / Receipt</label>'+photoInputHtml('rev-slip')+'</div>';
   html += '</div>';
 
   html += '<div class="conditional-block" id="cc-fee-block" style="display:none;">';
-  html += '<div class="form-group"><label>Credit Card Fee (%)</label><input type="number" step="0.01" min="0" id="rev-cc-fee-pct" placeholder="e.g. 3.00" oninput="updateCcFeePreview()"></div>';
+  html += '<div class="form-group"><label>Credit Card Fee (%)</label><input type="number" step="0.01" min="0" id="rev-cc-fee-pct" placeholder="e.g. 3.00" value="'+(entry&&entry.ccFeePct?entry.ccFeePct:'')+'" oninput="updateCcFeePreview()"></div>';
   html += '<div class="sheet-sub" id="cc-fee-preview" style="margin-top:-6px;">Enter the percentage your processor charges — we\'ll deduct it so your tracked revenue matches what actually lands in the bank.</div>';
   html += '</div>';
 
   html += '<div class="form-err" id="rev-err"></div>';
-  html += '<button class="btn btn-primary" onclick="saveRevenue()">Save Revenue Entry</button>';
+  html += '<button class="btn btn-primary" onclick="saveRevenue()">'+(entry?'Save Changes':'Save Revenue Entry')+'</button>';
 
   sheet.innerHTML = html;
   wirePhotoInput('rev-slip');
   onExpVendorChange('rev-customer-select','rev-customer-select-new-wrap');
-  REV_AMOUNT_MANUAL = false;
-  onRevRateChange();
+
+  if(entry){
+    const custSel = document.getElementById('rev-customer-select');
+    if(custSel){
+      custSel.value = entry.customerName || '';
+      if(custSel.value !== (entry.customerName||'')){
+        // name isn't in the dropdown list yet — fall back to the "add new" text field
+        custSel.value = '__new__';
+        onExpVendorChange('rev-customer-select','rev-customer-select-new-wrap');
+        const newInp = document.getElementById('rev-customer-select-newname');
+        if(newInp) newInp.value = entry.customerName || '';
+      }
+    }
+    if(entry.slipPhoto){
+      const fileInp = document.getElementById('rev-slip-file');
+      const prev = document.getElementById('rev-slip-preview');
+      if(fileInp) fileInp.dataset.b64 = entry.slipPhoto;
+      if(prev){ prev.src = entry.slipPhoto; prev.style.display = 'block'; }
+    }
+  }
+
+  REV_AMOUNT_MANUAL = !!entry;
+  if(!entry){
+    onRevRateChange();
+  } else {
+    // Editing: update the qty field's label to match the saved rate type, without
+    // triggering a recalculation that could silently overwrite the saved amount.
+    const qtyLabels = { daily:'Number of Days', weekly:'Number of Weeks', monthly:'Number of Months' };
+    const labelEl = document.getElementById('rev-qty-label');
+    if(labelEl) labelEl.textContent = qtyLabels[entry.rateType] || 'Quantity';
+  }
+  toggleDepositBlock();
+  updateCcFeePreview();
   showOverlay('overlay-revenue');
+}
+
+function editRevenue(id){
+  openRevenueForm(null, id);
 }
 
 function toggleDepositBlock(){
@@ -2324,6 +2366,26 @@ async function saveRevenue(){
   const discountAmount = discEl && discEl.value ? parseFloat(discEl.value) : 0;
 
   const unit = findUnit(unitId);
+
+  if(REV_EDIT_ID){
+    const idx = REVENUE.findIndex(r=>r.id===REV_EDIT_ID);
+    if(idx===-1){ err.textContent='That entry could not be found — it may have been deleted.'; return; }
+    const existing = REVENUE[idx];
+    const entry = Object.assign({}, existing, {
+      unitId, unitLabel: unit?unit.label:unitId, customerName,
+      amount, rateType:rate, rateQty, discountAmount, paymentType:pay, datePaid, depositDate, slipPhoto,
+      ccFeePct, ccFeeAmount, netAmount,
+      checkInDate, checkOutDate
+    });
+    REVENUE[idx] = entry;
+    await sSet('revenue', REVENUE);
+    REV_EDIT_ID = null;
+    closeOverlay('overlay-revenue');
+    renderRevenue();
+    showToast('Revenue entry updated');
+    return;
+  }
+
   const entry = {
     id:'rev-'+Date.now(), unitId, unitLabel: unit?unit.label:unitId, customerName,
     amount, rateType:rate, rateQty, discountAmount, paymentType:pay, datePaid, depositDate, slipPhoto,
@@ -2461,6 +2523,7 @@ function renderRevenue(){
       '<span>Entered by '+r.enteredBy+'</span></div>';
     if(hasFee){ h += '<div class="card-meta" style="color:#8B8468;">Charged $'+Number(r.amount).toFixed(2)+' — '+r.ccFeePct+'% card fee ($'+Number(r.ccFeeAmount).toFixed(2)+') — net $'+Number(r.netAmount).toFixed(2)+'</div>'; }
     if(r.slipPhoto){ h += '<img class="card-photo" src="'+r.slipPhoto+'" onclick="viewPhoto(\''+r.slipPhoto+'\')">'; }
+    h += '<div style="margin-top:8px;"><button class="btn" style="padding:6px 14px;font-size:13px;" onclick="editRevenue(\''+r.id+'\')">✏️ Edit'+(r.slipPhoto?'':' / Add Receipt')+'</button></div>';
     h += '</div>';
     return h;
   }).join('');
@@ -2857,6 +2920,7 @@ function renderExpensesTab(){
       '<div class="card-sub">'+sub+'</div></div><div class="amount">$'+Number(e.amount).toFixed(2)+'</div></div>';
     if(e.note){ h += '<div class="card-note">'+escapeHtml(e.note)+'</div>'; }
     if(e.photo){ h += '<img class="card-photo" src="'+e.photo+'" onclick="viewPhoto(\''+e.photo+'\')">'; }
+    h += '<div style="margin-top:8px;"><button class="btn" style="padding:6px 14px;font-size:13px;" onclick="editExpense(\''+e.id+'\')">✏️ Edit'+(e.photo?'':' / Add Receipt')+'</button></div>';
     h += '</div>';
     return h;
   }).join('');
@@ -2916,39 +2980,84 @@ async function resolveVendorSelection(vendorKey, selectId){
   return sel.value;
 }
 
-function openExpenseForm(){
+let EXP_EDIT_ID = null;
+
+function openExpenseForm(editId){
+  EXP_EDIT_ID = editId || null;
+  const entry = editId ? EXPENSES.find(e=>e.id===editId) : null;
   const sheet = document.getElementById('sheet-expense');
   let html = '<button class="sheet-close" onclick="closeOverlay(\'overlay-expense\')">✕</button><div class="sheet-handle"></div>';
-  if(SESSION_ROLE!=='admin'){
-    // Manager-facing form: just photo, amount, where it was bought, and date.
-    html += '<h2>Add Supply Expense</h2><div class="sheet-sub">Log a receipt for something you bought for the park.</div>';
+
+  const useSupplyForm = entry ? !!entry.isSupply : (SESSION_ROLE!=='admin');
+
+  if(useSupplyForm){
+    // Simple form: just photo, amount, where it was bought, and date. Used for manager-logged
+    // supply purchases, and also when editing one of those entries (even if admin is editing it).
+    html += entry ? '<h2>Edit Expense</h2><div class="sheet-sub">Update the details below.</div>'
+                  : '<h2>Add Supply Expense</h2><div class="sheet-sub">Log a receipt for something you bought for the park.</div>';
     html += '<div class="form-group"><label>Photo of Receipt</label>'+photoInputHtml('exp-photo')+'</div>';
-    html += '<div class="form-group"><label>Amount ($)</label><input type="number" step="0.01" min="0" id="exp-amount" placeholder="0.00"></div>';
+    html += '<div class="form-group"><label>Amount ($)</label><input type="number" step="0.01" min="0" id="exp-amount" placeholder="0.00" value="'+(entry?Number(entry.amount).toFixed(2):'')+'"></div>';
     html += '<div class="form-group"><label>Where was it bought?</label>'+vendorDropdownHtml('manager_supply','exp-vendor-select','e.g. Dollar General')+'</div>';
-    html += '<div class="form-group"><label>Date</label><input type="date" id="exp-date" value="'+todayStr()+'"></div>';
+    html += '<div class="form-group"><label>Date</label><input type="date" id="exp-date" value="'+(entry?entry.date:todayStr())+'"></div>';
     html += '<div class="form-err" id="exp-err"></div>';
-    html += '<button class="btn btn-primary" onclick="saveExpense()">Save Expense</button>';
+    html += '<button class="btn btn-primary" onclick="saveExpense()">'+(entry?'Save Changes':'Save Expense')+'</button>';
     sheet.innerHTML = html;
     wirePhotoInput('exp-photo');
     onExpVendorChange('exp-vendor-select','exp-vendor-select-new-wrap');
+    if(entry){
+      prefillDropdownOrNew('exp-vendor-select', entry.description||'');
+      prefillPhoto('exp-photo', entry.photo);
+    }
     showOverlay('overlay-expense');
     return;
   }
-  html += '<h2>Add Expense</h2>';
+
+  html += entry ? '<h2>Edit Expense</h2>' : '<h2>Add Expense</h2>';
   html += '<div class="form-group"><label>Category</label><select id="exp-cat" onchange="onExpCatChange()">'+
-    EXPENSE_CATEGORIES.map(c=>'<option value="'+c.key+'">'+c.label+'</option>').join('')+'</select></div>';
+    EXPENSE_CATEGORIES.map(c=>'<option value="'+c.key+'"'+(entry&&entry.category===c.key?' selected':'')+'>'+c.label+'</option>').join('')+'</select></div>';
   html += '<div class="form-group" id="exp-subcat-wrap"></div>';
   html += '<div class="form-group" id="exp-vendor-wrap"></div>';
-  html += '<div class="form-group"><label>Amount ($)</label><input type="number" step="0.01" min="0" id="exp-amount" placeholder="0.00"></div>';
-  html += '<div class="form-group"><label>Date</label><input type="date" id="exp-date" value="'+todayStr()+'"></div>';
-  html += '<div class="form-group"><label>Photo of Receipt (optional)</label>'+photoInputHtml('exp-photo')+'</div>';
-  html += '<div class="form-group"><label>Note (optional)</label><textarea id="exp-note" placeholder="Details..."></textarea></div>';
+  html += '<div class="form-group"><label>Amount ($)</label><input type="number" step="0.01" min="0" id="exp-amount" placeholder="0.00" value="'+(entry?Number(entry.amount).toFixed(2):'')+'"></div>';
+  html += '<div class="form-group"><label>Date</label><input type="date" id="exp-date" value="'+(entry?entry.date:todayStr())+'"></div>';
+  html += '<div class="form-group"><label>Photo of Receipt or Pay Stub (optional)</label>'+photoInputHtml('exp-photo')+'</div>';
+  html += '<div class="form-group"><label>Note (optional)</label><textarea id="exp-note" placeholder="Details...">'+(entry&&entry.note?escapeHtml(entry.note):'')+'</textarea></div>';
   html += '<div class="form-err" id="exp-err"></div>';
-  html += '<button class="btn btn-primary" onclick="saveExpense()">Save Expense</button>';
+  html += '<button class="btn btn-primary" onclick="saveExpense()">'+(entry?'Save Changes':'Save Expense')+'</button>';
   sheet.innerHTML = html;
   onExpCatChange();
   wirePhotoInput('exp-photo');
+  if(entry){
+    const subEl = document.getElementById('exp-subcat');
+    if(subEl && entry.subcategory){ subEl.value = entry.subcategory; renderExpVendorWrap(); }
+    if(entry.vendor) prefillDropdownOrNew('exp-vendor-select', entry.vendor);
+    prefillPhoto('exp-photo', entry.photo);
+  }
   showOverlay('overlay-expense');
+}
+
+function editExpense(id){
+  openExpenseForm(id);
+}
+
+// Set a dropdown (customer/vendor style, with a "__new__" + text-input fallback) to a saved
+// value even if that value isn't in the list yet.
+function prefillDropdownOrNew(selectId, value){
+  const sel = document.getElementById(selectId);
+  if(!sel || !value) return;
+  sel.value = value;
+  if(sel.value !== value){
+    sel.value = '__new__';
+    onExpVendorChange(selectId, selectId+'-new-wrap');
+    const newInp = document.getElementById(selectId+'-newname');
+    if(newInp) newInp.value = value;
+  }
+}
+function prefillPhoto(fieldId, photoDataUrl){
+  if(!photoDataUrl) return;
+  const fileInp = document.getElementById(fieldId+'-file');
+  const prev = document.getElementById(fieldId+'-preview');
+  if(fileInp) fileInp.dataset.b64 = photoDataUrl;
+  if(prev){ prev.src = photoDataUrl; prev.style.display = 'block'; }
 }
 function onExpCatChange(){
   const key = document.getElementById('exp-cat').value;
@@ -3070,11 +3179,25 @@ async function saveExpense(){
   if(!amount || amount<=0){ err.textContent='Enter a valid amount.'; return; }
   if(!date){ err.textContent='Enter a date.'; return; }
 
-  if(SESSION_ROLE!=='admin'){
+  const existing = EXP_EDIT_ID ? EXPENSES.find(e=>e.id===EXP_EDIT_ID) : null;
+  const useSupplyForm = existing ? !!existing.isSupply : (SESSION_ROLE!=='admin');
+
+  if(useSupplyForm){
     const description = await resolveVendorSelection('manager_supply', 'exp-vendor-select');
     if(!description){ err.textContent='Say where it was bought.'; return; }
     const fileInp = document.getElementById('exp-photo-file');
-    const photo = fileInp && fileInp.dataset.b64 ? fileInp.dataset.b64 : null;
+    const photo = fileInp && fileInp.dataset.b64 ? fileInp.dataset.b64 : (existing ? existing.photo : null);
+
+    if(existing){
+      const idx = EXPENSES.findIndex(e=>e.id===EXP_EDIT_ID);
+      EXPENSES[idx] = Object.assign({}, existing, {description, amount, date, photo});
+      await sSet('expenses', EXPENSES);
+      EXP_EDIT_ID = null;
+      closeOverlay('overlay-expense');
+      renderExpensesTab();
+      showToast('Expense updated');
+      return;
+    }
     const entry = {id:'exp-'+Date.now(), isSupply:true, description, amount, date, photo, enteredBy:SESSION_ROLE, enteredByName:'Manager', timestamp:Date.now()};
     EXPENSES.unshift(entry);
     await sSet('expenses', EXPENSES);
@@ -3089,11 +3212,22 @@ async function saveExpense(){
   const subcategory = subEl ? subEl.value : null;
   const note = document.getElementById('exp-note').value.trim();
   const photoInp = document.getElementById('exp-photo-file');
-  const photo = photoInp && photoInp.dataset.b64 ? photoInp.dataset.b64 : null;
+  const photo = photoInp && photoInp.dataset.b64 ? photoInp.dataset.b64 : (existing ? existing.photo : null);
   let vendor = null;
   const vendorKey = currentExpVendorKey();
   if(vendorKey && document.getElementById('exp-vendor-select')){
     vendor = await resolveVendorSelection(vendorKey, 'exp-vendor-select');
+  }
+
+  if(existing){
+    const idx = EXPENSES.findIndex(e=>e.id===EXP_EDIT_ID);
+    EXPENSES[idx] = Object.assign({}, existing, {category, subcategory, amount, date, note, vendor, photo});
+    await sSet('expenses', EXPENSES);
+    EXP_EDIT_ID = null;
+    closeOverlay('overlay-expense');
+    renderExpensesTab();
+    showToast('Expense updated');
+    return;
   }
   const entry = {id:'exp-'+Date.now(), category, subcategory, amount, date, note, vendor, photo, enteredBy:SESSION_ROLE, timestamp:Date.now()};
   EXPENSES.unshift(entry);
