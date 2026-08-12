@@ -357,6 +357,7 @@
       <div class="who">
         <span class="role-chip" id="role-chip">ADMIN</span>
         <button class="icon-btn" id="desktop-toggle-topbar" style="display:none;" onclick="toggleDesktopMode()" title="Switch view">🖥</button>
+        <button class="icon-btn" id="refresh-btn" onclick="refreshAppData()" title="Refresh">↻</button>
         <button class="icon-btn" onclick="openSettings()" title="Settings">⚙</button>
         <button class="icon-btn" onclick="logout()" title="Log out">⏻</button>
       </div>
@@ -1256,6 +1257,56 @@ async function doLogin(){
   if(pin !== expected){ err.textContent='Incorrect PIN. Try again.'; return; }
   err.textContent='';
   enterApp(SELECTED_ROLE_BTN);
+}
+
+let REFRESH_IN_PROGRESS = false;
+async function refreshAppData(){
+  if(REFRESH_IN_PROGRESS) return;
+  REFRESH_IN_PROGRESS = true;
+  const btn = document.getElementById('refresh-btn');
+  if(btn) btn.style.opacity = '0.4';
+  try{
+    const [
+      _revenue, _repairs, _expenses, _todos, _notes, _expenseVendors,
+      _customerNames, _files, _mhOccupancy, _pricing, _antennas,
+      _layoutOverrides, _unitStatusOverrides, _layoutLocked
+    ] = await Promise.all([
+      sGet('revenue'), sGet('repairs'), sGet('expenses'), sGet('todos'), sGet('notes'),
+      sGet('expenseVendors'), sGet('customerNames'), sGet('files'), sGet('mhOccupancy'),
+      sGet('pricing'), sGet('antennas'), sGet('layoutOverrides'), sGet('unitStatusOverrides'),
+      sGet('layoutLocked')
+    ]);
+    REVENUE = _revenue || [];
+    REPAIRS = _repairs || [];
+    EXPENSES = _expenses || [];
+    TODOS = _todos || [];
+    NOTES = _notes || [];
+    EXPENSE_VENDORS = _expenseVendors || {};
+    CUSTOMER_NAMES = _customerNames || [];
+    FILES = _files || [];
+    MH_OCCUPANCY = _mhOccupancy || {};
+    PRICING = _pricing || PRICING;
+    ANTENNAS = _antennas || ANTENNAS;
+    LAYOUT_OVERRIDES = _layoutOverrides || {};
+    UNIT_STATUS_OVERRIDES = _unitStatusOverrides || {};
+    LAYOUT_LOCKED = _layoutLocked || false;
+    applyUnitStatusOverrides();
+    applyLayoutOverrides();
+    updateLockButtonUI();
+    renderMapPins();
+    renderRevenue();
+    renderRepairs();
+    renderExpensesTab();
+    renderTodoTab();
+    if(document.body.classList.contains('desktop-mode')) renderDesktopView();
+    showToast('Refreshed');
+  } catch(e){
+    console.error('refreshAppData failed', e);
+    showToast('Refresh failed, check connection');
+  } finally {
+    REFRESH_IN_PROGRESS = false;
+    if(btn) btn.style.opacity = '';
+  }
 }
 
 async function enterApp(role){
