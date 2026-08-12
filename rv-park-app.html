@@ -1109,26 +1109,39 @@ window.addEventListener('DOMContentLoaded', init);
 async function init(){
   const loadingEl = document.getElementById('loading-indicator');
   if(loadingEl) loadingEl.style.display='block';
-  CONFIG = await sGet('config');
-  REVENUE = (await sGet('revenue')) || [];
-  REPAIRS = (await sGet('repairs')) || [];
-  EXPENSES = (await sGet('expenses')) || [];
-  TODOS = (await sGet('todos')) || [];
-  NOTES = (await sGet('notes')) || [];
-  EXPENSE_VENDORS = (await sGet('expenseVendors')) || {};
-  CUSTOMER_NAMES = (await sGet('customerNames')) || [];
-  FILES = (await sGet('files')) || [];
-  MH_OCCUPANCY = (await sGet('mhOccupancy')) || {};
-  PRICING = (await sGet('pricing')) || { spotDaily:30, spotWeekly:185, spotMonthly:500, mhMonthly:1500 };
-  ANTENNAS = (await sGet('antennas')) || [
+  // Fetch every independent Firestore document in parallel instead of one-at-a-time —
+  // this was previously 13+ sequential round trips, which is the likely cause of slow/
+  // occasionally-stuck loads. Same data, same fallbacks, just fired concurrently.
+  const [
+    _config, _revenue, _repairs, _expenses, _todos, _notes, _expenseVendors,
+    _customerNames, _files, _mhOccupancy, _pricing, _antennas,
+    _layoutOverrides, _unitStatusOverrides, _layoutLocked
+  ] = await Promise.all([
+    sGet('config'), sGet('revenue'), sGet('repairs'), sGet('expenses'), sGet('todos'),
+    sGet('notes'), sGet('expenseVendors'), sGet('customerNames'), sGet('files'),
+    sGet('mhOccupancy'), sGet('pricing'), sGet('antennas'), sGet('layoutOverrides'),
+    sGet('unitStatusOverrides'), sGet('layoutLocked')
+  ]);
+  CONFIG = _config;
+  REVENUE = _revenue || [];
+  REPAIRS = _repairs || [];
+  EXPENSES = _expenses || [];
+  TODOS = _todos || [];
+  NOTES = _notes || [];
+  EXPENSE_VENDORS = _expenseVendors || {};
+  CUSTOMER_NAMES = _customerNames || [];
+  FILES = _files || [];
+  MH_OCCUPANCY = _mhOccupancy || {};
+  PRICING = _pricing || { spotDaily:30, spotWeekly:185, spotMonthly:500, mhMonthly:1500 };
+  ANTENNAS = _antennas || [
     {id:'antenna-1', label:'WiFi Antenna 1 (placeholder)', x:15, y:2},
     {id:'antenna-2', label:'WiFi Antenna 2 (placeholder)', x:85, y:97}
   ];
-  if(!(await sGet('antennas'))) { await sSet('antennas', ANTENNAS); }
-  LAYOUT_OVERRIDES = (await sGet('layoutOverrides')) || {};
-  UNIT_STATUS_OVERRIDES = (await sGet('unitStatusOverrides')) || {};
+  if(!_antennas) { await sSet('antennas', ANTENNAS); }
+  LAYOUT_OVERRIDES = _layoutOverrides || {};
+  UNIT_STATUS_OVERRIDES = _unitStatusOverrides || {};
   applyUnitStatusOverrides();
-  LAYOUT_LOCKED = (await sGet('layoutLocked')) || false;
+  LAYOUT_LOCKED = _layoutLocked || false;
   updateLockButtonUI();
   // One-time migration: spots 12-18 were rotated 90 degrees, resized to match spot-33, and later
   // spaced out evenly from near the top-left to near the top-right corner. Clear any stale saved
