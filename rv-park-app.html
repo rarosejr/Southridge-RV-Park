@@ -3835,30 +3835,61 @@ function buildReportHtml(stats, monthLabel, isOverview){
   return h;
 }
 
+const REPORT_MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let REPORT_MONTH_KEY = null; // set on open; drives print/PDF/on-screen report together
+
+// Builds "<option>" list going back from the current month. Goes back far enough to cover
+// the park's full history (or at least a few years), plus lets you pick a couple months
+// ahead in case you're prepping something early.
+function reportMonthOptions(selectedKey){
+  const now = new Date();
+  let opts = '';
+  for(let i=-2;i<48;i++){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const label = REPORT_MONTH_NAMES[d.getMonth()]+' '+d.getFullYear();
+    opts += '<option value="'+key+'"'+(key===selectedKey?' selected':'')+'>'+label+'</option>';
+  }
+  return opts;
+}
+
+function monthKeyToLabel(monthKey){
+  const parts = monthKey.split('-');
+  return REPORT_MONTH_NAMES[parseInt(parts[1],10)-1]+' '+parts[0];
+}
+
 function openMonthlyReport(){
   const now = new Date();
-  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const monthLabel = monthNames[now.getMonth()]+' '+now.getFullYear();
-  const curMonthKey = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-  const stats = computeDesktopMonthlyStats(curMonthKey);
+  REPORT_MONTH_KEY = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  renderReportSheet();
+  showOverlay('overlay-report');
+}
+
+function changeReportMonth(monthKey){
+  REPORT_MONTH_KEY = monthKey;
+  renderReportSheet();
+}
+
+function renderReportSheet(){
+  const monthLabel = monthKeyToLabel(REPORT_MONTH_KEY);
+  const stats = computeDesktopMonthlyStats(REPORT_MONTH_KEY);
 
   const sheet = document.getElementById('sheet-report');
   let html = '<button class="sheet-close" onclick="closeOverlay(\'overlay-report\')">✕</button><div class="sheet-handle"></div>';
+  html += '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">';
+  html += '<select onchange="changeReportMonth(this.value)" style="flex:1;min-width:140px;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--card);">'+reportMonthOptions(REPORT_MONTH_KEY)+'</select>';
+  html += '</div>';
   html += '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">';
   html += '<button class="btn btn-primary" style="flex:1;min-width:140px;" onclick="printMonthlyReport()">🖨 Print</button>';
   html += '<button class="btn" style="flex:1;min-width:140px;" onclick="downloadReportPDF()">⬇ Download PDF</button>';
   html += '</div>';
   html += '<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;">'+buildReportHtml(stats, monthLabel)+'</div>';
   sheet.innerHTML = html;
-  showOverlay('overlay-report');
 }
 
 function printMonthlyReport(){
-  const now = new Date();
-  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const monthLabel = monthNames[now.getMonth()]+' '+now.getFullYear();
-  const curMonthKey = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-  const stats = computeDesktopMonthlyStats(curMonthKey);
+  const monthLabel = monthKeyToLabel(REPORT_MONTH_KEY);
+  const stats = computeDesktopMonthlyStats(REPORT_MONTH_KEY);
   const printArea = document.getElementById('report-print-area');
   printArea.innerHTML = buildReportHtml(stats, monthLabel);
   document.body.classList.add('printing-report');
@@ -3868,10 +3899,8 @@ function printMonthlyReport(){
 
 function downloadReportPDF(){
   if(!window.jspdf || !window.jspdf.jsPDF){ showToast('PDF library did not load — check your connection.'); return; }
-  const now = new Date();
-  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const monthLabel = monthNames[now.getMonth()]+' '+now.getFullYear();
-  const curMonthKey = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const monthLabel = monthKeyToLabel(REPORT_MONTH_KEY);
+  const curMonthKey = REPORT_MONTH_KEY;
   const stats = computeDesktopMonthlyStats(curMonthKey);
 
   const doc = new window.jspdf.jsPDF();
